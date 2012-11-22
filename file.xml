@@ -7,15 +7,21 @@
 		</suboject1>
 		
 		<list name="coisas">
-			<coisa>Coisa1<coisa>
-			<coisa>Coisa2<coisa>
-			<coisa>Coisa3<coisa>
-			<coisa>Coisa4<coisa>
+			<coisa>Coisa1</coisa>
+			<coisa>Coisa2</coisa>
+			<coisa>Coisa3</coisa>
+			<coisa>Coisa4</coisa>
 		</list>
+		<name>Caio</name>
 	</object1>
+
+	<attrRoot1>Oi, eu sou o Goku</attrRoot1>
+	<attrRoot2>Tchau, eu sou o Vegita</attrRoot2>
 	
 	
 	<object2 id="myId2" name="name1">
-		<suboject1>
+		<attr1>Valor1</attr1>
+		<attr2>Valor2</attr2>
+		<attr3>Valor3</attr3>
 	</object2>
 </configuration>

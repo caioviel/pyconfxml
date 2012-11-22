@@ -33,6 +33,7 @@ class PyConfigReader:
         config_id = root.get('id')
         descriptor_file = root.get('configurationDescription')
         self.__config = PyConfig(config_id)
+        self.__references_to_solve = []
         
         #Iterate by the root elems
         childs = root.iterchildren()
@@ -41,29 +42,86 @@ class PyConfigReader:
                 #just a comment
                 continue
             
-            
             if elem.tag == 'list':
                 #It's a list
                 self.parse_list(self.__config, elem)
                 
+            elif elem.tag == 'reference':
+                #It's a reference
+                self.parse_reference(self.__config, elem)
+                
             elif len(elem) == 0 and len(elem.items()) == 0:
                 #It's an attribute
-                self.parse_attribute(self.__config, elem)
+                attrname, attrvalue = self.parse_attribute(self.__config, elem)
+                self.__config.set_attribute(attrname, attrvalue)
+                
             else:
                 #It's an subnode
-                self.parse_node(self.__config, elem)
+                self.__config.add_node(  self.parse_node(self.__config, elem) )
                 
+        self.__validator.check_required_attributes('root', self.__config.get_attributes_names())
+        self.__validator.check_required_nodes('root', self.__config.get_child_nodes_tags())
+        
+        for parent_node, refer_name, node_id, sourceline in self.__references_to_solve:
+            referred_node = None
+            try:
+                referred_node = self.__config.get_node(node_id)
+            except:
+                raise Exception('Line %d: An invalid noneId "%s" referred.' % \
+                                (sourceline, refer_name))
             
+            self.__validator.check_reference(parent_node.tag, refer_name, referred_node.tag)
+            parent_node.set_attribute(refer_name, referred_node)
+            
+        
         return self.__config
     
     def parse_list(self, parent_node, list_elem):
-        pass
+        list_name = list_elem.get('name')
+        self.__validator.check_list(parent_node.tag, list_name)
+        
+        childs = list_elem.iterchildren()
+        parent_node
+        for elem in childs:
+            if type (elem) != etree._Element:
+                #just a comment
+                continue
+                
+            if len(elem) == 0 and len(elem.items()) == 0:
+                #It's just a primitive
+                str_value = elem.text
+                if str_value == None:
+                    raise Exception("Line %d: A primitive list element must have a text." \
+                                    % (elem.sourceline))
+                
+                list_value = self.__validator.check_and_convert_list_primitive(\
+                                    parent_node.tag, list_name, elem.tag, elem.text)
+                
+                parent_node.add_to_list(list_name, list_value)
+                
+            else:
+                #It's an subnode
+                node = self.parse_node(self.__config, elem)
+                self.__validator.check_list_node(parent_node.tag, list_name, node.tag)
+                parent_node.add_node_to_list(list_name, node)
+        
+    
+    def parse_reference(self, parent_node, refer_elem):
+        refer_name = refer_elem.get('name')
+        node_id = refer_elem.get('nodeId')
+        if refer_name == None:
+            raise Exception('Line %d: <reference> must have a attribute "name".' % refer_elem.sourceline)
+        
+        if node_id == None:
+            raise Exception('Line %d: <reference> must have a attribute "nodeId".' % refer_elem.sourceline)
+            
+        self.__references_to_solve.append( (parent_node, refer_name, node_id, refer_elem.sourceline) )
     
     def parse_attribute(self, parent_node, attribute_elem):
         attr_name = attribute_elem.tag
         attr_value = attribute_elem.text
         attr_value = self.__validator.check_and_convert_attribute(parent_node.tag, attr_name, attr_value)
-        parent_node.set_attribute(attr_name, attr_value)
+        return attr_name, attr_value
     
     def parse_node(self, parent_node, node_elem):
         node_id = node_elem.get('id')
@@ -75,8 +133,16 @@ class PyConfigReader:
             
         node = CofigNode(node_id, node_elem.tag)
         
+        for attr_name, attr_value in node_elem.items():
+            if attr_name == 'id':
+                continue
+            
+            attr_value = self.__validator.check_and_convert_attribute(\
+                                    node.tag, attr_name, attr_value)            
+            node.set_attribute(attr_name, attr_value)
+        
+        
         childs = node_elem.iterchildren()
-        unique_names_list = []
         for elem in childs:
             if type (elem) != etree._Element:
                 #just a comment
@@ -84,20 +150,25 @@ class PyConfigReader:
             
             if elem.tag == 'list':
                 #It's a list
-                self.parse_list(self.__config, elem)
+                self.parse_list(node, elem)
+                
+            elif elem.tag == 'reference':
+                #It's a reference
+                self.parse_reference(node, elem)
                 
             elif len(elem) == 0 and len(elem.items()) == 0:
                 #It's an attribute
-                self.parse_attribute(node, elem)
+                attr_name, attr_value = self.parse_attribute(node, elem)
+                node.set_attribute(attr_name, attr_value)
+                
             else:
                 #It's an subnode
-                self.parse_node(node, elem)
+                node.add_node( self.parse_node(node, elem) )
                 
                 
         self.__validator.check_required_attributes(node_tag, node.get_attributes_names())
         self.__validator.check_required_nodes(node_tag, node.get_child_nodes_tags())
-        parent_node.add_node(node)
-        
+        return node
         
             
     def generate_id(self):
@@ -113,10 +184,13 @@ class ConfigValidator:
     def check_node(self, parent_tag, children_tag):
         pass
     
-    def has_list(self, node_tag, list_name):
+    def check_list(self, node_tag, list_name):
         pass
     
-    def check_list_element(self, node_tag, list_name, tag_name):
+    def check_and_convert_list_primitive(self, node_tag, list_name, tag_name, value):
+        return value
+    
+    def check_list_node(self, node_tag, list_name, tag_name):
         pass
     
     def check_and_convert_attribute(self, node_tag, attr_name, attr_value_str):
@@ -126,6 +200,9 @@ class ConfigValidator:
         pass
     
     def check_required_nodes(self, node_tag, node_tags_list):
+        pass
+    
+    def check_reference(self, parent_node_tag, refer_name, refer_tag):
         pass
         
 class PyConfig:
@@ -150,6 +227,10 @@ class PyConfig:
     
     
     def add_node(self, node):
+        if self.has_attribute(node.tag):
+            raise Exception('Trying to override the symbol "%s" inside a "%s"' \
+                            % (node.tag, self.tag))
+            
         self.__children_nodes[node.id] = node
         self.__all_nodes[node.id] = node
         setattr(self, node.tag, node)
@@ -158,15 +239,26 @@ class PyConfig:
         return self.__all_nodes[node_id]
     
     def add_list(self, list_name, mlist):
-            setattr(object, 'list_' + list_name, mlist)
-            self.__lists[list_name] = mlist
+        setattr(self, list_name, mlist)
+        self.__lists[list_name] = mlist
         
     def add_to_list(self, list_name, elem):
         if not self.__lists.has_key(list_name):
             new_list = []
-            setattr(object, 'list_' + list_name, new_list)
+            setattr(self, list_name, new_list)
             self.__lists[list_name] = new_list
+            
         self.__lists[list_name].append(elem)
+        
+    def add_node_to_list(self, list_name, node):
+        if not self.__lists.has_key(list_name):
+            new_list = []
+            setattr(self, list_name, new_list)
+            self.__lists[list_name] = new_list
+        
+        self.__lists[list_name].append(node)
+        self.__all_nodes[node.id] = node
+        
     
     def get_list(self, list_name):
         if not self.__lists.has_key(list_name):
@@ -175,6 +267,10 @@ class PyConfig:
         return self.__lists[list_name]
     
     def set_attribute(self, attr_name, attr_value):
+        if self.has_attribute(attr_name):
+            raise Exception('Trying to override the symbol "%s" inside a "%s"' \
+                            % (attr_name, self.tag))
+        
         self.__attributes_list.append(attr_name)
         setattr(self, attr_name, attr_value)
     
@@ -205,6 +301,8 @@ def test():
     print config.attrRoot2
     print config.object1.name
     print config.object1.suboject1.name
+    print config.object2.myReference.name
+    print config.object1.minha_lista_de_coisas
 
     
 

@@ -6,13 +6,13 @@
 			<age>24</age>
 		</suboject1>
 		
-		<list name="coisas">
+		<list name="minha_lista_de_coisas">
 			<coisa>Coisa1</coisa>
 			<coisa>Coisa2</coisa>
 			<coisa>Coisa3</coisa>
 			<coisa>Coisa4</coisa>
 		</list>
-		<name>Caio</name>
+		<otherName>Caio</otherName>
 	</object1>
 
 	<attrRoot1>Oi, eu sou o Goku</attrRoot1>
@@ -23,5 +23,6 @@
 		<attr1>Valor1</attr1>
 		<attr2>Valor2</attr2>
 		<attr3>Valor3</attr3>
+		<reference name="myReference" nodeId="myId1" />
 	</object2>
 </configuration>
